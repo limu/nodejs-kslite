@@ -1,2 +1,7 @@
-kslite: a javascript module loader 
-nodjs-kslite: kslite for nodejs
+## kslite
+
+a javascript module loader 
+
+## nodjs-kslite
+
+kslite for nodejs
