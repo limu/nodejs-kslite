@@ -1,4 +1,4 @@
 #
 .tmp_*
 .project
-.bat
+*.bat
