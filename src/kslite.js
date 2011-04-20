@@ -1,22 +1,25 @@
 KSLITE = {};
-var S = KSLITE;
+var util = require("util");
 var INIT = 0, LOADING = 1, LOADED = 2, ERROR = 3, ATTACHED = 4;
-var mods = {}, rqmap = {}, spmap = {};
+var mods = {}, rqmap = {}, spmap = {}, modExports = {};
+var Config = {
+    debug: true
+};
 function declare(){
     var i, arg, args = arguments;
     var id, deps, fn, mod;
     for (i = 0; i < args.length; i++) {
         arg = args[i];
-        if (typeof arg === "string") {
+        if (isString(arg)) {
             id = arg;
         }
         else 
-            if (typeof arg === "function") {
-                deps = arg;
+            if (isFunction(arg)) {
+                fn = arg;
             }
             else 
-                if (arg instanceof Array) {
-                    fn = arg;
+                if (isArray(arg)) {
+                    deps = arg;
                 }
     }
     if (mods[id] && mods[id].status > INIT) {
@@ -33,12 +36,27 @@ function declare(){
 }
 
 function provide(modNames, callback){
-    attachModes(modNames, function(){
-        callback();
+    attachMods(modNames, function(){
+        callback(ksRequire);
     });
 }
 
-function attachModes(modNames, callback){
+function ksRequireParent(names){
+    var i, namesArr = names.split("-"), o = modExports;
+    for (i = 0; i < namesArr.length; i++) {
+        o[namesArr[i]] = o[namesArr[i]] || {};
+        o = o[namesArr[i]];
+    }
+    return o;
+}
+
+function ksRequire(modName){
+    var modRoot = ksRequireParent(modName);
+    modRoot.exports = modRoot.exports || {};
+    return modRoot.exports;
+}
+
+function attachMods(modNames, callback){
     var i, asyncers = {};
     for (i = 0; i < modNames.length; i++) {
         asyncers[modNames[i]] = {
@@ -50,21 +68,21 @@ function attachModes(modNames, callback){
 }
 
 function attachMod(modName, callback){
-    var mod, requires;
-    function attach(mod){
+    var mod = mods[modName], deps;
+    function _attach(mod){
         if (mod.status != ATTACHED) {
             if (mod.fn) {
-                //S.log("attach " + mod.name);
-                mod.fn(S, S.require(mod.name));
+                log("attach " + mod.name);
+                mod.fn(ksRequire, ksRequire(mod.name), ksRequireParent(mod.name));
             }
             else {
-                //S.log("attach " + mod.name + " without expected attach fn!", "warn");
+                log("attach " + mod.name + " without expected attach fn!", "warn");
             }
             mod.status = ATTACHED;
         }
         callback();
     }
-    function addRelies(mod){
+    function _addRelies(mod){
         var i, modName, reqName, n;//rqmap,spmap
         function reg2Map(modName){
             rqmap[modName] = rqmap[modName] || {};
@@ -82,38 +100,159 @@ function attachMod(modName, callback){
             }
         }
     }
-    mod = mods[modName];
     if (mod && mod.status !== INIT) {
-        requires = mod.requires;
-        if (S.iA(requires) && requires.length > 0) {
-            addRelies(mod);
+        deps = mod.deps;
+        if (isArray(deps) && deps.length > 0) {
+            _addRelies(mod);
             if (rqmap[modName][modName]) {
                 throw new Error("Fatal Error,Loop Reqs:" + mod.name);
             }
-            S.log(mod.name + " to req: " + requires);
-            S._aMs(requires, function(){
-                attach(mod);
+            log(mod.name + " to req: " + requires);
+            attachMods(deps, function(){
+                _attach(mod);
             });
         }
         else {
-            attach(mod);
+            _attach(mod);
         }
     }
     else {
-        mod = {
-            name: modName
-        };
-        S._lM(mod, function(){
-            S._aM(modName, function(){
-                attach(mods[modName]);
+        loadMod(modName, function(){
+            attachMod(modName, function(){
+                _attach(mods[modName]);
             });
         });
     }
 }
 
+function loadMod(modName, callback){
+    var path = getModPath(modName);
+    require(path);
+    callback();
+}
+
+function getModPath(modName){
+    var path = modeName.split("-").join("/");
+    return path;
+}
+
+//exports object 
+//"path", "log", "getScript", "substitute",
+//"clone", "mix", "multiAsync", "extend", 
+//"iA", "iF", "iPO", "iS"
+function path(s, callback){
+    log("There isn't 'path' implement yet,callback directly");//todo
+    callback();
+}
+
+function log(msg, cat, src){
+    if (Config.debug) {
+        console[cat && console[cat] ? cat : 'log'](">>>>>>>>" + msg);
+    }
+}
+
+function getScript(url, success, charset, expando){
+    log("There isn't 'getScript' implement yet,callback directly");//todo
+    success();
+}
+
+function substitute(str, o, regexp, multiSubstitute){
+    if (!isString(str) || !isPlainObject(o)) {
+        return str;
+    }
+    return str.replace(regexp || (/\\?\{([^{}]+)\}/g), function(match, name){
+        if (match.charAt(0) === '\\') {
+            return match.slice(1);
+        }
+        return (o[name] !== undefined) ? o[name] : (multiSubstitute ? match : "");
+    });
+}
+
+function isString(s){
+    return (typeof(s) === "string");
+}
+
+function isArray(a){
+    return (a instanceof Array);
+}
+
+function isFunction(a){
+    return (typeof(a) === "function");
+}
+
+function isPlainObject(o){
+    return (typeof(o) === "object");
+}
+
+function mix(r, s, ov, wl){
+    if (!s || !r) {
+        return r;
+    }
+    if (ov === undefined) {
+        ov = true;
+    }
+    var i, p, l;
+    if (wl && (l = wl.length)) {
+        for (i = 0; i < l; i++) {
+            p = wl[i];
+            if (p in s) {
+                if (ov || !(p in r)) {
+                    r[p] = s[p];
+                }
+            }
+        }
+    }
+    else {
+        for (p in s) {
+            if (ov || !(p in r)) {
+                r[p] = s[p];
+            }
+        }
+    }
+    return r;
+}
+
+function extend(r, s, px, sx){
+    if (!s || !r) {
+        return r;
+    }
+    var OP = Object.prototype, _O = function(o){
+        function __F(){
+        }
+        __F.prototype = o;
+        return new __F();
+    }, sp = s.prototype, rp = _O(sp);
+    r.prototype = rp;
+    rp.constructor = r;
+    r.superclass = sp;
+    if (s !== Object && sp.constructor === OP.constructor) {
+        sp.constructor = s;
+    }
+    if (px) {
+        mix(rp, px);
+    }
+    if (sx) {
+        mix(r, sx);
+    }
+    return r;
+}
+
+function clone(o){
+    var ret = o, b, k;
+    if (o && ((b = isArray(o)) || isPlainObject(o))) {
+        ret = b ? [] : {};
+        for (k in o) {
+            if (o.hasOwnProperty(k)) {
+                ret[k] = clone(o[k]);
+            }
+        }
+    }
+    return ret;
+}
+
 function multiAsync(asyncers, callback){
     var ctx, k, hasAsyncer = false;
-    function isAllComplete(){
+    function _isAllComplete(){
         var k, ro = {};
         for (k in asyncers) {
             if (!asyncers[k].c) {
@@ -135,11 +274,32 @@ function multiAsync(asyncers, callback){
             ao.f.call((ao.c || this), ao.a, function(data){
                 ao.r = data;
                 ao.c = true;
-                isAllComplete();
+                _isAllComplete();
             });
         })();
     }
 }
 
-S.declare = declare;
-exports.multiAsync = multiAsync;
+//main
+function _init(){
+    mix(KSLITE, {
+        declare: declare,
+        provide: provide
+    });
+    mix(exports, {
+        multiAsync: multiAsync,
+        iA: isArray,
+        iS: isString,
+        iF: isFunction,
+        iPO: isPlainObject,
+        mix: mix,
+        extend: extend,
+        clone: clone,
+        substitute: substitute,
+        log: log,
+        getScript: getScript,
+        path: path
+    });
+}
+
+_init();
