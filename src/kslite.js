@@ -1,4 +1,5 @@
 KSLITE = {};
+var version = "0.0.1a";
 var util = require("util");
 var INIT = 0, LOADING = 1, LOADED = 2, ERROR = 3, ATTACHED = 4;
 var mods = {}, rqmap = {}, spmap = {}, modExports = {};
@@ -127,12 +128,17 @@ function attachMod(modName, callback){
 
 function loadMod(modName, callback){
     var path = getModPath(modName);
-    require(path);
+    try {
+        require(path);
+    } 
+    catch (err) {
+        require("./" + path);
+    }
     callback();
 }
 
 function getModPath(modName){
-    var path = modeName.split("-").join("/");
+    var path = modName.split("-").join("/");
     return path;
 }
 
@@ -284,7 +290,8 @@ function multiAsync(asyncers, callback){
 function _init(){
     mix(KSLITE, {
         declare: declare,
-        provide: provide
+        provide: provide,
+        version: version
     });
     mix(exports, {
         multiAsync: multiAsync,
@@ -298,7 +305,8 @@ function _init(){
         substitute: substitute,
         log: log,
         getScript: getScript,
-        path: path
+        path: path,
+        version: version
     });
 }
 
