@@ -1,6 +1,5 @@
 KSLITE = {};
 var version = "0.0.1a";
-var util = require("util");
 var INIT = 0, LOADING = 1, LOADED = 2, ERROR = 3, ATTACHED = 4;
 var mods = {}, rqmap = {}, spmap = {}, modExports = {};
 var Config = {
@@ -23,6 +22,15 @@ function declare(){
                     deps = arg;
                 }
     }
+    if (!id) {
+        if (declare.id) {
+            id = declare.id;
+        }
+        else {
+            log("warn", "declare without id!");
+        }
+    }
+    declare.id = "";
     if (mods[id] && mods[id].status > INIT) {
         return;
     }
@@ -127,6 +135,7 @@ function attachMod(modName, callback){
 }
 
 function loadMod(modName, callback){
+    declare.id = modName;
     var path = getModPath(modName);
     try {
         require(path);
