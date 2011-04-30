@@ -5,6 +5,7 @@ var mods = {}, rqmap = {}, spmap = {}, modExports = {};
 var Config = {
     debug: true
 };
+KSLITE.modExports = modExports;
 function declare(){
     var i, arg, args = arguments;
     var id, deps, fn, mod;
@@ -99,8 +100,8 @@ function attachMod(modName, callback){
             return modName;
         }
         modName = reg2Map(mod.name);
-        for (i = 0; i < mod.requires.length; i++) {
-            reqName = reg2Map(mod.requires[i]);
+        for (i = 0; i < mod.deps.length; i++) {
+            reqName = reg2Map(mod.deps[i]);
             rqmap[modName][reqName] = 1;
             spmap[reqName][modName] = 1;
             for (n in spmap[modName]) {
@@ -116,7 +117,7 @@ function attachMod(modName, callback){
             if (rqmap[modName][modName]) {
                 throw new Error("Fatal Error,Loop Reqs:" + mod.name);
             }
-            log(mod.name + " to req: " + requires);
+            log(mod.name + " to req: " + deps);
             attachMods(deps, function(){
                 _attach(mod);
             });
@@ -141,6 +142,7 @@ function loadMod(modName, callback){
         require(path);
     } 
     catch (err) {
+        log(err.message);
         require("./" + path);
     }
     callback();
@@ -296,13 +298,13 @@ function multiAsync(asyncers, callback){
 }
 
 //main
-function _init(){
+function init(){
     mix(KSLITE, {
         declare: declare,
         provide: provide,
         version: version
     });
-    mix(exports, {
+    var kslite = {
         multiAsync: multiAsync,
         iA: isArray,
         iS: isString,
@@ -316,7 +318,13 @@ function _init(){
         getScript: getScript,
         path: path,
         version: version
+    };
+    KSLITE.declare("kslite", function(require, exports){
+        mix(exports, kslite);
     });
+    KSLITE.provide(["kslite"], function(){
+    });
+    mix(exports, kslite);
 }
 
-_init();
+init();
